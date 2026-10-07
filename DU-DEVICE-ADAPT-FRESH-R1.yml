@@ -1,0 +1,157 @@
+name: DU Device Adapt Fresh R1 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Create fresh Android project
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/java/com/du/deviceadapt
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = 'DUDeviceAdapt'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.du.deviceadapt'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.du.deviceadapt'
+                  minSdk 26
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0-R1'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.CAMERA" />
+              <application android:theme="@style/AppTheme" android:label="DU Device Adapt">
+                  <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowLightStatusBar">false</item>
+                  <item name="android:navigationBarColor">#080B10</item>
+                  <item name="android:statusBarColor">#080B10</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/du/deviceadapt/MainActivity.java <<'EOF'
+          package com.du.deviceadapt;
+
+          import android.app.*;
+          import android.os.*;
+          import android.content.*;
+          import android.content.pm.PackageManager;
+          import android.graphics.Color;
+          import android.hardware.camera2.*;
+          import android.media.MediaCodecInfo;
+          import android.media.MediaCodecList;
+          import android.util.DisplayMetrics;
+          import android.view.*;
+          import android.widget.*;
+          import java.util.*;
+
+          public class MainActivity extends Activity {
+              TextView report, state;
+              LinearLayout root;
+              int pad;
+
+              @Override public void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  pad=(int)(16*getResources().getDisplayMetrics().density);
+                  ScrollView sv=new ScrollView(this);
+                  root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(pad,pad,pad,pad); root.setBackgroundColor(Color.rgb(8,11,16));
+                  sv.addView(root);
+                  TextView title=t("DU DEVICE ADAPT",28,true); root.addView(title);
+                  root.addView(t("REAL-TIME DEVICE CAPABILITY ENGINE",13,false));
+                  state=t("SCANNING DEVICE…",20,true); root.addView(state);
+                  report=t("",15,false); report.setTextIsSelectable(true); root.addView(report);
+                  Button scan=new Button(this); scan.setText("RESCAN & ADAPT"); scan.setOnClickListener(v->scan()); root.addView(scan);
+                  setContentView(sv); scan();
+              }
+              TextView t(String s,int sp,boolean bold){ TextView v=new TextView(this); v.setText(s); v.setTextColor(Color.WHITE); v.setTextSize(sp); v.setPadding(0,pad/2,0,pad/2); if(bold)v.setTypeface(null,1); return v; }
+              void scan(){
+                  ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE); ActivityManager.MemoryInfo mi=new ActivityManager.MemoryInfo(); am.getMemoryInfo(mi);
+                  long ramGB=Math.max(1,Math.round(mi.totalMem/1073741824.0));
+                  DisplayMetrics dm=getResources().getDisplayMetrics();
+                  int cams=0, full=0; StringBuilder camInfo=new StringBuilder();
+                  try { CameraManager cm=(CameraManager)getSystemService(CAMERA_SERVICE); for(String id:cm.getCameraIdList()){ cams++; CameraCharacteristics c=cm.getCameraCharacteristics(id); Integer lvl=c.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL); if(lvl!=null && (lvl==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL || lvl==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3)) full++; camInfo.append("  Camera ").append(id).append(": level ").append(level(lvl)).append("\n"); } } catch(Exception e){camInfo.append("  Camera query restricted\n");}
+                  boolean hevc=false, avc=false; try { for(MediaCodecInfo i:new MediaCodecList(MediaCodecList.ALL_CODECS).getCodecInfos()) if(i.isEncoder() && i.isHardwareAccelerated()) for(String s:i.getSupportedTypes()){ if(s.equalsIgnoreCase("video/hevc"))hevc=true; if(s.equalsIgnoreCase("video/avc"))avc=true; } } catch(Exception ignored){}
+                  int score=0; if(ramGB>=12)score+=4; else if(ramGB>=8)score+=3; else if(ramGB>=6)score+=2; else score+=1; if(Build.VERSION.SDK_INT>=34)score+=2; else if(Build.VERSION.SDK_INT>=31)score++; if(full>0)score+=2; if(hevc)score+=2; if(Runtime.getRuntime().availableProcessors()>=8)score+=2;
+                  String tier=score>=11?"ULTRA":score>=8?"HIGH":score>=5?"STANDARD":score>=3?"BASIC":"LIMITED";
+                  int thermal=-1; if(Build.VERSION.SDK_INT>=29){ PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE); thermal=pm.getCurrentThermalStatus(); }
+                  String budget=(thermal>=PowerManager.THERMAL_STATUS_SEVERE || mi.lowMemory)?"REDUCED / PROTECT DEVICE":"NORMAL / FULL TIER BUDGET";
+                  state.setText("ACTIVE PROFILE: "+tier);
+                  String s="\nDEVICE\n"+Build.MANUFACTURER+" "+Build.MODEL+"\nAndroid "+Build.VERSION.RELEASE+"  API "+Build.VERSION.SDK_INT+"\nABI "+Arrays.toString(Build.SUPPORTED_ABIS)+"\nCPU cores "+Runtime.getRuntime().availableProcessors()+"\nRAM ≈ "+ramGB+" GB\nAvailable RAM "+(mi.availMem/1048576)+" MB\nLow-memory flag "+mi.lowMemory+"\n\nDISPLAY\n"+dm.widthPixels+" × "+dm.heightPixels+"  density "+dm.densityDpi+" dpi\n\nCAMERA CAPABILITY\nDetected cameras "+cams+"\nFULL/LEVEL_3 cameras "+full+"\n"+camInfo+"\nHARDWARE VIDEO ENCODE\nH.264/AVC "+yes(avc)+"\nH.265/HEVC "+yes(hevc)+"\n\nLIVE DEVICE STATE\nThermal status "+thermalName(thermal)+"\nAdaptation budget: "+budget+"\n\nDECISION ENGINE\nCapability score "+score+"\nOperating tier "+tier+"\nThe profile is calculated from measured Android capabilities; it is not assigned from the phone brand.";
+                  report.setText(s);
+              }
+              String yes(boolean b){return b?"hardware encoder detected":"not detected";}
+              String level(Integer i){ if(i==null)return "UNKNOWN"; if(i==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3)return "LEVEL_3"; if(i==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL)return "FULL"; if(i==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED)return "LIMITED"; if(i==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY)return "LEGACY"; if(i==CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL)return "EXTERNAL"; return String.valueOf(i); }
+              String thermalName(int t){ if(t<0)return "Unavailable"; String[] n={"NONE","LIGHT","MODERATE","SEVERE","CRITICAL","EMERGENCY","SHUTDOWN"}; return t<n.length?n[t]:String.valueOf(t); }
+          }
+          EOF
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Verify APK exists
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload DU Device Adapt APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DU-DEVICE-ADAPT-FRESH-R1-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
