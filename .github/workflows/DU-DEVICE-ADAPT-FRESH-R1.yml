@@ -1,33 +1,31 @@
-name: DU Device Adapt Fresh R1 APK
+name: DU Device Adapt R1 APK
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build:
-    name: Build DU Device Adapt APK
+    name: Build Real APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
+      - name: Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Create fresh Android project
+      - name: Create Android project
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           mkdir -p app/src/main/java/com/du/deviceadapt
-          mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
 
           cat > settings.gradle <<'EOF'
@@ -38,7 +36,6 @@ jobs:
                   gradlePluginPortal()
               }
           }
-
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
               repositories {
@@ -46,7 +43,6 @@ jobs:
                   mavenCentral()
               }
           }
-
           rootProject.name = "DUDeviceAdapt"
           include(":app")
           EOF
@@ -71,142 +67,335 @@ jobs:
                   minSdk 26
                   targetSdk 35
                   versionCode 1
-                  versionName "1.0-R1"
+                  versionName "1.0"
               }
           }
           EOF
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
               <uses-feature
                   android:name="android.hardware.camera.any"
                   android:required="false" />
 
               <application
-                  android:allowBackup="true"
-                  android:label="DU Device Adapt"
-                  android:theme="@style/AppTheme">
+                  android:theme="@style/AppTheme"
+                  android:label="DU Device Adapt">
 
                   <activity
                       android:name=".MainActivity"
+                      android:screenOrientation="unspecified"
                       android:exported="true">
 
                       <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
 
                   </activity>
-
               </application>
-
           </manifest>
           EOF
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+              <style name="AppTheme"
+                  parent="android:style/Theme.Material.NoActionBar">
                   <item name="android:fontFamily">sans</item>
-                  <item name="android:windowLightStatusBar">false</item>
-                  <item name="android:navigationBarColor">#090B10</item>
-                  <item name="android:statusBarColor">#090B10</item>
                   <item name="android:windowBackground">#090B10</item>
+                  <item name="android:statusBarColor">#090B10</item>
+                  <item name="android:navigationBarColor">#090B10</item>
                   <item name="android:colorAccent">#FFFFFF</item>
               </style>
           </resources>
           EOF
 
-          cat > app/src/main/res/layout/activity_main.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <ScrollView
-              xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#090B10">
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:orientation="vertical"
-                  android:padding="20dp">
-
-                  <TextView
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:text="DU DEVICE ADAPT"
-                      android:textColor="#FFFFFF"
-                      android:textSize="28sp"
-                      android:textStyle="bold"/>
-
-                  <TextView
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:text="LIVE HARDWARE ADAPTATION ENGINE"
-                      android:textColor="#AEB7C7"
-                      android:textSize="12sp"
-                      android:layout_marginTop="4dp"
-                      android:layout_marginBottom="18dp"/>
-
-                  <TextView
-                      android:id="@+id/tier"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:text="ANALYSING DEVICE..."
-                      android:textColor="#FFFFFF"
-                      android:textSize="22sp"
-                      android:textStyle="bold"
-                      android:padding="16dp"
-                      android:background="#171B24"/>
-
-                  <TextView
-                      android:id="@+id/report"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:textColor="#D8DCE5"
-                      android:textSize="15sp"
-                      android:lineSpacingExtra="5dp"
-                      android:layout_marginTop="14dp"/>
-
-                  <Button
-                      android:id="@+id/rescan"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:text="RESCAN DEVICE"
-                      android:layout_marginTop="20dp"/>
-
-              </LinearLayout>
-
-          </ScrollView>
-          EOF
-
           cat > app/src/main/java/com/du/deviceadapt/MainActivity.java <<'EOF'
           package com.du.deviceadapt;
 
-          import android.app.Activity;
-          import android.app.ActivityManager;
-          import android.content.Context;
-          import android.hardware.camera2.CameraCharacteristics;
-          import android.hardware.camera2.CameraManager;
-          import android.media.MediaCodecInfo;
-          import android.media.MediaCodecList;
-          import android.os.BatteryManager;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.PowerManager;
-          import android.util.DisplayMetrics;
-          import android.view.Display;
-          import android.widget.Button;
-          import android.widget.TextView;
-
-          import java.util.Locale;
+          import android.app.*;
+          import android.os.*;
+          import android.content.*;
+          import android.hardware.camera2.*;
+          import android.media.*;
+          import android.graphics.Color;
+          import android.view.*;
+          import android.widget.*;
+          import java.util.*;
 
           public class MainActivity extends Activity {
 
-              private TextView tierView;
-              private TextView reportView;
+              LinearLayout root;
+              TextView tier;
+              TextView report;
 
               @Override
-              protected void onCreate(Bundle savedInstanceState) {
+              public void onCreate(Bundle b) {
+                  super.onCreate(b);
+
+                  ScrollView scroll = new ScrollView(this);
+
+                  root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(40,40,40,60);
+                  root.setBackgroundColor(Color.rgb(9,11,16));
+
+                  tier = text(28);
+                  report = text(16);
+
+                  Button scan = new Button(this);
+                  scan.setText("RESCAN DEVICE");
+                  scan.setOnClickListener(v -> scan());
+
+                  root.addView(tier);
+                  root.addView(report);
+                  root.addView(scan);
+
+                  scroll.addView(root);
+                  setContentView(scroll);
+
+                  scan();
+              }
+
+              TextView text(int size) {
+                  TextView v = new TextView(this);
+                  v.setTextColor(Color.WHITE);
+                  v.setTextSize(size);
+                  v.setPadding(0,20,0,20);
+                  return v;
+              }
+
+              void scan() {
+
+                  StringBuilder s = new StringBuilder();
+                  int score = 0;
+
+                  s.append("DU DEVICE ADAPT\n");
+                  s.append("LIVE DEVICE PROFILE\n\n");
+
+                  s.append("DEVICE\n");
+                  s.append(Build.MANUFACTURER)
+                   .append(" ")
+                   .append(Build.MODEL)
+                   .append("\n");
+
+                  s.append("Android ")
+                   .append(Build.VERSION.RELEASE)
+                   .append(" / API ")
+                   .append(Build.VERSION.SDK_INT)
+                   .append("\n\n");
+
+                  s.append("CPU / ABI\n");
+
+                  for (String abi : Build.SUPPORTED_ABIS)
+                      s.append(abi).append("\n");
+
+                  if (Build.SUPPORTED_64_BIT_ABIS.length > 0)
+                      score += 2;
+
+                  ActivityManager am =
+                      (ActivityManager)getSystemService(ACTIVITY_SERVICE);
+
+                  ActivityManager.MemoryInfo mi =
+                      new ActivityManager.MemoryInfo();
+
+                  am.getMemoryInfo(mi);
+
+                  double ram =
+                      mi.totalMem / 1073741824.0;
+
+                  s.append("\nMEMORY\n");
+                  s.append(String.format(
+                      Locale.US,
+                      "RAM: %.1f GB\n",
+                      ram));
+
+                  s.append("Low memory: ")
+                   .append(mi.lowMemory ? "YES" : "NO")
+                   .append("\n");
+
+                  if (ram >= 12) score += 4;
+                  else if (ram >= 8) score += 3;
+                  else if (ram >= 6) score += 2;
+                  else if (ram >= 4) score += 1;
+
+                  try {
+                      CameraManager cm =
+                          (CameraManager)getSystemService(CAMERA_SERVICE);
+
+                      String[] ids = cm.getCameraIdList();
+
+                      int front = 0;
+                      int back = 0;
+
+                      for (String id : ids) {
+
+                          CameraCharacteristics c =
+                              cm.getCameraCharacteristics(id);
+
+                          Integer facing =
+                              c.get(CameraCharacteristics.LENS_FACING);
+
+                          if (facing != null &&
+                              facing == CameraCharacteristics.LENS_FACING_FRONT)
+                              front++;
+
+                          if (facing != null &&
+                              facing == CameraCharacteristics.LENS_FACING_BACK)
+                              back++;
+                      }
+
+                      s.append("\nCAMERA HARDWARE\n");
+                      s.append("Camera IDs: ")
+                       .append(ids.length)
+                       .append("\n");
+
+                      s.append("Rear: ")
+                       .append(back)
+                       .append("\n");
+
+                      s.append("Front: ")
+                       .append(front)
+                       .append("\n");
+
+                      if (ids.length >= 3) score += 2;
+                      else if (ids.length >= 2) score += 1;
+
+                  } catch(Exception e) {
+                      s.append("\nCamera enumeration unavailable\n");
+                  }
+
+                  boolean avc = false;
+                  boolean hevc = false;
+
+                  try {
+                      MediaCodecInfo[] codecs =
+                          new MediaCodecList(
+                              MediaCodecList.ALL_CODECS)
+                              .getCodecInfos();
+
+                      for (MediaCodecInfo c : codecs) {
+
+                          if (!c.isEncoder()) continue;
+
+                          for (String type : c.getSupportedTypes()) {
+
+                              if (type.equalsIgnoreCase("video/avc"))
+                                  avc = true;
+
+                              if (type.equalsIgnoreCase("video/hevc"))
+                                  hevc = true;
+                          }
+                      }
+                  } catch(Exception ignored) {}
+
+                  s.append("\nVIDEO ENCODERS\n");
+                  s.append("H.264: ")
+                   .append(avc ? "YES" : "NO")
+                   .append("\n");
+
+                  s.append("HEVC: ")
+                   .append(hevc ? "YES" : "NO")
+                   .append("\n");
+
+                  if (avc) score++;
+                  if (hevc) score += 2;
+
+                  BatteryManager bm =
+                      (BatteryManager)getSystemService(BATTERY_SERVICE);
+
+                  int battery =
+                      bm.getIntProperty(
+                          BatteryManager.BATTERY_PROPERTY_CAPACITY);
+
+                  s.append("\nPOWER\n");
+                  s.append("Battery: ")
+                   .append(battery)
+                   .append("%\n");
+
+                  if (Build.VERSION.SDK_INT >= 29) {
+
+                      PowerManager pm =
+                          (PowerManager)getSystemService(POWER_SERVICE);
+
+                      s.append("Thermal status: ")
+                       .append(pm.getCurrentThermalStatus())
+                       .append("\n");
+                  }
+
+                  String level;
+
+                  if (score >= 11) level = "ULTRA";
+                  else if (score >= 8) level = "HIGH";
+                  else if (score >= 6) level = "STANDARD";
+                  else if (score >= 4) level = "BASIC";
+                  else level = "LIMITED";
+
+                  tier.setText(
+                      "OPERATING TIER\n" +
+                      level +
+                      "\n");
+
+                  s.append("\nADAPTATION SCORE\n");
+                  s.append(score).append("\n\n");
+
+                  s.append(
+                      "Profile generated from this handset's " +
+                      "detected hardware and Android capabilities."
+                  );
+
+                  report.setText(s.toString());
+              }
+          }
+          EOF
+
+      - name: Validate project
+        shell: bash
+        run: |
+          set -e
+          test -s settings.gradle
+          test -s app/build.gradle
+          test -s app/src/main/AndroidManifest.xml
+          test -s app/src/main/java/com/du/deviceadapt/MainActivity.java
+          grep -q "class MainActivity" \
+            app/src/main/java/com/du/deviceadapt/MainActivity.java
+          echo "ANDROID SOURCE VALIDATED"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '8.9'
+
+      - name: Build actual APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug
+
+      - name: Verify actual APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          test -f "$APK"
+          test -s "$APK"
+
+          echo "APK CREATED:"
+          ls -lh "$APK"
+
+          mkdir -p apk-output
+          cp "$APK" \
+             apk-output/DU-Device-Adapt-R1.apk
+
+          test -s \
+             apk-output/DU-Device-Adapt-R1.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DU-DEVICE-ADAPT-R1-APK
+          path: apk-output/DU-Device-Adapt-R1.apk
+          if-no-files-found: error
+          retention-days: 30
